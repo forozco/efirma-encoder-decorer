@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>POC — Acceso con e.firma (.cer + .key + contraseña + RFC)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 12px; }
+    form { display: grid; gap: 12px; max-width: 560px; }
+    label { display: grid; gap: 6px; }
+    input[type="file"], input[type="password"], input[type="text"] {
+      padding: 10px; border: 1px solid #c8c8c8; border-radius: 10px;
+    }
+    button { padding: 10px 14px; border-radius: 10px; border: 0; background:#5a0f2d; color:#fff; cursor: pointer; }
+    pre { background:#111; color:#0f0; padding:16px; border-radius:10px; overflow:auto; }
+    .hint { font-size: 0.9rem; color:#666; }
+  </style>
+</head>
+<body>
+  <h1>Acceso con e.firma — POC local</h1>
+
+  <form id="form">
+    <label>Certificado (.cer)
+      <input type="file" name="cer" accept=".cer" required />
+    </label>
+    <label>Clave privada (.key)
+      <input type="file" name="key" accept=".key" required />
+    </label>
+    <label>Contraseña de clave privada
+      <input type="password" name="passphrase" placeholder="Contraseña" required />
+    </label>
+    <label>RFC
+      <input type="text" name="rfc" placeholder="RFC (se autollenará desde el .cer)" />
+    </label>
+    <div class="hint">POC local: los archivos se procesan en memoria y no se guardan.</div>
+    <button type="submit">Enviar</button>
+  </form>
+
+  <h2>Resultado</h2>
+  <pre id="out">—</pre>
+
+  <script>
+    const $form = document.getElementById('form');
+    const $out  = document.getElementById('out');
+    const $cer  = document.querySelector('input[name="cer"]');
+    const $rfc  = document.querySelector('input[name="rfc"]');
+
+    $cer.addEventListener('change', async () => {
+      if (!$cer.files || !$cer.files[0]) return;
+      try {
+        const fd = new FormData();
+        fd.append('cer', $cer.files[0]);
+
+        const res = await fetch('/api/cert-preview', { method: 'POST', body: fd });
+        const json = await res.json();
+
+        if (json?.ok && json?.rfc) {
+          $rfc.value = json.rfc;
+        } else {
+          console.warn('No se pudo extraer el RFC del .cer:', json?.error);
+        }
+      } catch (e) {
+        console.warn('Error al previsualizar .cer', e);
+      }
+    });
+
+    $form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $out.textContent = 'Procesando…';
+      const fd = new FormData($form);
+      try {
+        const res = await fetch('/api/efirma', { method: 'POST', body: fd });
+        const json = await res.json();
+        $out.textContent = JSON.stringify(json, null, 2);
+      } catch (err) {
+        $out.textContent = String(err?.message || err || 'Error');
+      }
+    });
+  </script>
+</body>
+</html>
