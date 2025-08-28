@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import multer from "multer";
 import { X509Certificate, createPrivateKey, createSign, createVerify } from "node:crypto";
@@ -41,7 +41,7 @@ app.use(express.static(join(process.cwd(), "public")));
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     if (!/\.cer$|\.key$/i.test(file.originalname)) {
       return cb(new Error("Solo .cer y .key"));
     }
@@ -50,7 +50,7 @@ const upload = multer({
 });
 
 // --- PREVIEW: extrae datos del .cer para autollenar RFC en el formulario ---
-app.post("/api/cert-preview", upload.single("cer"), async (req, res) => {
+app.post("/api/cert-preview", upload.single("cer"), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ ok: false, error: "Falta el .cer" });
 
@@ -69,8 +69,10 @@ app.post("/api/cert-preview", upload.single("cer"), async (req, res) => {
       validoHasta: cert.validTo,
       subject: cert.subject
     });
-  } catch (err: any) {
-    res.status(400).json({ ok: false, error: err?.message ?? "Error leyendo .cer" });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error leyendo .cer";
+    console.error('Error en cert-preview:', err);
+    res.status(400).json({ ok: false, error: message });
   }
 });
 
@@ -78,7 +80,7 @@ app.post("/api/cert-preview", upload.single("cer"), async (req, res) => {
 app.post(
   "/api/efirma",
   upload.fields([{ name: "cer", maxCount: 1 }, { name: "key", maxCount: 1 }]),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const files = req.files as Record<string, Express.Multer.File[]>;
       const passphrase = (req.body?.passphrase ?? "").toString();
@@ -163,8 +165,10 @@ app.post(
       };
 
       res.json(payload);
-    } catch (err: any) {
-      res.status(400).json({ ok: false, error: err?.message ?? "Error procesando archivos" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error procesando archivos";
+      console.error('Error en efirma:', err);
+      res.status(400).json({ ok: false, error: message });
     }
   }
 );
