@@ -84,25 +84,47 @@ app.post(
     try {
       const files = req.files as Record<string, Express.Multer.File[]>;
       const passphrase = (req.body?.passphrase ?? "").toString();
-      const rfcInput = normalizeRFC((req.body?.rfc ?? "").toString());
+      const rfcInputRaw = (req.body?.rfc ?? "").toString();
+      const rfcInput = normalizeRFC(rfcInputRaw);
 
-      const issues: string[] = [];
+      // DEBUG: Mostrar qué llega del formulario
+      console.log('RFC Input Raw:', JSON.stringify(rfcInputRaw));
+      console.log('RFC Input Normalizado:', JSON.stringify(rfcInput));
 
       if (!files?.cer?.[0] || !files?.key?.[0]) {
         return res.status(400).json({ ok: false, error: "Falta el .cer o el .key" });
       }
       if (!passphrase) return res.status(400).json({ ok: false, error: "Falta la contraseña" });
-      if (!rfcInput) issues.push("No se capturó RFC (se validará solo contra el certificado).");
 
       const cerBuf = files.cer[0].buffer;
       const keyBuf = files.key[0].buffer;
 
       // Leer certificado
       const cert = new X509Certificate(cerBuf);
+      
+      // LOG COMPLETO DEL CERTIFICADO
+      console.log('\n=== INFORMACIÓN COMPLETA DEL CERTIFICADO ===');
+      console.log('Subject completo:', cert.subject);
+      console.log('Issuer completo:', cert.issuer);
+      console.log('Serial Number (hex):', cert.serialNumber);
+      console.log('Valid From:', cert.validFrom);
+      console.log('Valid To:', cert.validTo);
+      console.log('Fingerprint SHA1:', cert.fingerprint);
+      console.log('Fingerprint SHA256:', cert.fingerprint256);
+      console.log('Key Usage:', cert.keyUsage);
+      console.log('Subject Alternative Names:', cert.subjectAltName);
+      console.log('Issuer Certificate:', cert.issuerCertificate);
+      console.log('Public Key (primeros 100 chars):', cert.publicKey.export({ format: 'pem', type: 'spki' }).toString().substring(0, 100));
+      
       const rfcFromCert = normalizeRFC(extractRFC(cert));
       const nombreORazonSocial = getSubjectAttr(cert.subject, "CN");
       const serialHex = cert.serialNumber.toUpperCase();
       const noCertificado = hexToDecimalString(serialHex);
+      
+      console.log('RFC extraído y normalizado:', rfcFromCert);
+      console.log('Nombre/Razón Social (CN):', nombreORazonSocial);
+      console.log('No. Certificado (decimal):', noCertificado);
+      console.log('=== FIN INFO CERTIFICADO ===\n');
 
       // DEBUG simplificado
       console.log('RFC Input:', rfcInput, '| RFC Cert:', rfcFromCert, '| Coinciden:', rfcInput === rfcFromCert);
@@ -111,12 +133,19 @@ app.post(
       const now = new Date();
       const notBefore = new Date(cert.validFrom);
       const notAfter = new Date(cert.validTo);
-      if (now < notBefore) issues.push("El certificado aún no es vigente (NotBefore).");
-      if (now > notAfter) issues.push("El certificado está vencido (NotAfter).");
+      
+      // Validar vigencia del certificado
+      if (now < notBefore) {
+        return res.status(400).json({ ok: false, error: "El certificado aún no es vigente (NotBefore)." });
+      }
+      if (now > notAfter) {
+        return res.status(400).json({ ok: false, error: "El certificado está vencido (NotAfter)." });
+      }
 
-      // RFC vs input
-      if (rfcInput && rfcFromCert && rfcInput !== rfcFromCert) {
-        issues.push(`El RFC capturado (${rfcInput}) no coincide con el del certificado (${rfcFromCert}).`);
+      // RFC vs input - Solo advertir, no detener el proceso
+      const rfcCoincide = !!(rfcInput && rfcFromCert && rfcInput === rfcFromCert);
+      if (rfcInput && rfcFromCert && !rfcCoincide) {
+        console.warn(`Advertencia: RFC capturado (${rfcInput}) no coincide con el del certificado (${rfcFromCert})`);
       }
 
       // Descifrar .key y probar correspondencia firmando/verificando
@@ -127,22 +156,49 @@ app.post(
         passphrase
       });
 
+      // LOG COMPLETO DE LA CLAVE PRIVADA
+      console.log('\n=== INFORMACIÓN COMPLETA DE LA CLAVE PRIVADA ===');
+      console.log('Tipo de clave:', keyObj.asymmetricKeyType);
+      console.log('Tamaño de clave (bits):', (keyObj.asymmetricKeyDetails as any)?.modulusLength);
+      console.log('Detalles asimétricos completos:', keyObj.asymmetricKeyDetails);
+      console.log('Tamaño simétrico (si aplica):', keyObj.symmetricKeySize);
+      
+      try {
+        const privateKeyPem = keyObj.export({ format: 'pem', type: 'pkcs8' }).toString();
+        console.log('Clave privada PEM (primeros 200 chars):', privateKeyPem.substring(0, 200));
+      } catch (err) {
+        console.log('No se pudo exportar la clave privada:', err);
+      }
+      
+      console.log('=== FIN INFO CLAVE PRIVADA ===\n');
+
       // Firma de prueba (como el sello CFDI: RSA-SHA256 PKCS#1 v1.5)
       const probe = Buffer.from("sat-efirma-poc");
+      console.log('\n=== PROCESO DE VERIFICACIÓN ===');
+      console.log('Mensaje a firmar:', probe.toString());
+      console.log('Tamaño del mensaje:', probe.length, 'bytes');
+      
       const signer = createSign("RSA-SHA256");
       signer.update(probe);
       const firma = signer.sign(keyObj);
       const firmaB64 = firma.toString("base64");
+      
+      console.log('Firma generada (Base64, primeros 100 chars):', firmaB64.substring(0, 100));
+      console.log('Tamaño de la firma:', firma.length, 'bytes');
 
       const verifier = createVerify("RSA-SHA256");
       verifier.update(probe);
       const keyMatches = verifier.verify(cert.publicKey, firma);
-      if (!keyMatches) issues.push("La clave privada no corresponde a la llave pública del .cer.");
+      
+      console.log('Verificación exitosa:', keyMatches);
+      console.log('=== FIN VERIFICACIÓN ===\n');
+      if (!keyMatches) {
+        return res.status(400).json({ ok: false, error: "La clave privada no corresponde a la llave pública del .cer." });
+      }
 
       const bits = (keyObj.asymmetricKeyDetails as any)?.modulusLength ?? undefined;
       const payload = {
-        ok: issues.length === 0,
-        issues,
+        ok: true,
         cer: {
           rfc: rfcFromCert,
           nombreORazonSocial,
@@ -158,11 +214,19 @@ app.post(
         key: { tipo: keyObj.asymmetricKeyType, bits },
         verificacion: {
           rfcInput,
-          rfcCoincide: !!(rfcInput && rfcFromCert && rfcInput === rfcFromCert),
+          rfcCoincide,
           publicKeyMatchesPrivateKey: keyMatches,
           firmaPruebaBase64: firmaB64
         }
       };
+
+      console.log('\n=== RESUMEN FINAL ===');
+      console.log('RFC Input:', rfcInput);
+      console.log('RFC Certificado:', rfcFromCert);
+      console.log('RFC Coincide:', rfcCoincide);
+      console.log('Clave coincide con certificado:', keyMatches);
+      console.log('Resultado general OK:', payload.ok);
+      console.log('=== FIN RESUMEN ===\n');
 
       res.json(payload);
     } catch (err: unknown) {
