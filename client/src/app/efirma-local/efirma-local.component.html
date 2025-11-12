@@ -1,0 +1,291 @@
+<div class="container">
+  <div class="header">
+    <h1>Generador de PKCS#12 (E.Firma Local)</h1>
+    <p class="subtitle">Convierte tus archivos .cer y .key a formato .p12 directamente en tu navegador</p>
+    <div class="info-banner">
+      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span>Tus archivos NO se envían a ningún servidor. Todo el procesamiento ocurre localmente en tu navegador.</span>
+    </div>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form">
+    <!-- Selección de archivo .cer -->
+    <div class="form-group">
+      <label for="cerFile" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        Certificado (.cer)
+      </label>
+      <div class="file-input-wrapper">
+        <input
+          type="file"
+          id="cerFile"
+          accept=".cer,.crt"
+          (change)="onCerSelected($event)"
+          class="file-input"
+        />
+        <label for="cerFile" class="file-label">
+          <span *ngIf="!cerFileName()">Seleccionar archivo .cer</span>
+          <span *ngIf="cerFileName()" class="file-selected">{{ cerFileName() }}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Selección de archivo .key -->
+    <div class="form-group">
+      <label for="keyFile" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+        </svg>
+        Llave privada (.key)
+      </label>
+      <div class="file-input-wrapper">
+        <input
+          type="file"
+          id="keyFile"
+          accept=".key,.pem"
+          (change)="onKeySelected($event)"
+          class="file-input"
+        />
+        <label for="keyFile" class="file-label">
+          <span *ngIf="!keyFileName()">Seleccionar archivo .key</span>
+          <span *ngIf="keyFileName()" class="file-selected">{{ keyFileName() }}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Contraseña -->
+    <div class="form-group">
+      <label for="password" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        Contraseña para el archivo .p12
+      </label>
+      <input
+        type="password"
+        id="password"
+        formControlName="password"
+        placeholder="Ingresa una contraseña segura"
+        class="input"
+        [class.input-error]="form.controls.password.invalid && form.controls.password.touched"
+      />
+      <small *ngIf="form.controls.password.invalid && form.controls.password.touched" class="error-text">
+        La contraseña debe tener al menos 4 caracteres
+      </small>
+    </div>
+
+    <!-- Nombre del archivo de salida -->
+    <div class="form-group">
+      <label for="filename" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+        </svg>
+        Nombre del archivo de salida
+      </label>
+      <div class="filename-input-wrapper">
+        <input
+          type="text"
+          id="filename"
+          formControlName="filename"
+          placeholder="certificado"
+          class="input"
+        />
+        <span class="filename-extension">.p12</span>
+      </div>
+    </div>
+
+    <!-- Botones -->
+    <div class="button-group">
+      <button
+        type="submit"
+        [disabled]="!canSubmit() || loading()"
+        class="btn btn-primary"
+      >
+        <svg *ngIf="!loading()" class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <svg *ngIf="loading()" class="btn-icon spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        {{ loading() ? 'Generando...' : 'Generar archivo .p12' }}
+      </button>
+
+      <button
+        type="button"
+        (click)="reset()"
+        class="btn btn-secondary"
+        [disabled]="loading()"
+      >
+        Limpiar
+      </button>
+    </div>
+  </form>
+
+  <!-- Resultado exitoso -->
+  <div *ngIf="result() && result()!.ok" class="result success">
+    <div class="result-header">
+      <svg class="result-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h3>Archivo PKCS#12 generado exitosamente</h3>
+    </div>
+    <p>El archivo <strong>{{ form.value.filename }}.p12</strong> está listo para descargar.</p>
+
+    <div class="download-section">
+      <button type="button" (click)="downloadP12File()" class="btn-download">
+        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+        </svg>
+        Descargar archivo .p12
+      </button>
+    </div>
+
+    <!-- Información del certificado -->
+    <div *ngIf="result()!.certInfo" class="cert-info">
+      <button type="button" (click)="toggleCertInfo()" class="cert-info-toggle">
+        <svg class="toggle-icon" [class.rotated]="showCertInfo()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        Ver información del certificado
+      </button>
+
+      <div *ngIf="showCertInfo()" class="cert-details">
+        <div class="cert-field">
+          <strong>Asunto:</strong>
+          <span>{{ result()!.certInfo!.subject }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Emisor:</strong>
+          <span>{{ result()!.certInfo!.issuer }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Válido desde:</strong>
+          <span>{{ formatDate(result()!.certInfo!.validFrom) }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Válido hasta:</strong>
+          <span>{{ formatDate(result()!.certInfo!.validTo) }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Número de serie:</strong>
+          <span>{{ result()!.certInfo!.serialNumber }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- String Base64 del PKCS#12 -->
+    <div *ngIf="result()!.base64" class="base64-section">
+      <button type="button" (click)="toggleBase64()" class="base64-toggle">
+        <svg class="toggle-icon" [class.rotated]="showBase64()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        Ver string Base64 del archivo .p12
+      </button>
+
+      <div *ngIf="showBase64()" class="base64-content">
+        <div class="base64-actions">
+          <button type="button" (click)="copyBase64ToClipboard()" class="btn-copy">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+            Copiar al portapapeles
+          </button>
+        </div>
+        <div class="base64-string">
+          <code>{{ result()!.base64 }}</code>
+        </div>
+        <div class="base64-info">
+          <p><strong>Longitud:</strong> {{ result()!.base64!.length }} caracteres</p>
+          <p class="base64-hint">Este string contiene el archivo .p12 codificado en base64. Puedes usarlo directamente en aplicaciones que lo soporten.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Información completa en JSON -->
+    <div *ngIf="result()!.fullData" class="fulldata-section">
+      <button type="button" (click)="toggleFullData()" class="fulldata-toggle">
+        <svg class="toggle-icon" [class.rotated]="showFullData()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        Ver datos completos en formato JSON
+      </button>
+
+      <div *ngIf="showFullData()" class="fulldata-content">
+        <div class="fulldata-actions">
+          <button type="button" (click)="copyFullDataToClipboard()" class="btn-copy">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+            Copiar JSON al portapapeles
+          </button>
+        </div>
+        <div class="fulldata-json">
+          <pre><code>{{ result()!.fullData | json }}</code></pre>
+        </div>
+        <div class="fulldata-info">
+          <p class="fulldata-hint">
+            <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Este JSON contiene toda la información extraída del certificado (.cer) y llave privada (.key), incluyendo:
+            datos del sujeto, emisor, validez, llave pública, extensiones X.509, fingerprints SHA-1/SHA-256, y metadatos del PKCS#12 generado.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultado con error -->
+  <div *ngIf="result() && !result()!.ok" class="result error">
+    <div class="result-header">
+      <svg class="result-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h3>Error al generar el archivo</h3>
+    </div>
+    <p class="error-message">{{ result()!.error }}</p>
+    <div class="error-hints">
+      <p><strong>Posibles causas:</strong></p>
+      <ul>
+        <li>Los archivos .cer y .key no corresponden al mismo certificado</li>
+        <li>La contraseña de la llave privada es incorrecta</li>
+        <li>Los archivos están corruptos o en un formato no soportado</li>
+        <li>El formato de los archivos no es compatible</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Información adicional -->
+  <div class="info-section">
+    <h3>¿Qué es PKCS#12?</h3>
+    <p>
+      PKCS#12 es un formato de archivo que contiene tanto el certificado público como la llave privada
+      en un solo archivo protegido por contraseña. Este formato es ampliamente compatible con navegadores,
+      sistemas operativos y aplicaciones.
+    </p>
+
+    <h3>¿Cómo usar este generador?</h3>
+    <ol>
+      <li>Selecciona tu archivo de certificado (.cer)</li>
+      <li>Selecciona tu archivo de llave privada (.key)</li>
+      <li>Ingresa una contraseña segura para proteger el archivo .p12</li>
+      <li>Haz clic en "Generar archivo .p12"</li>
+      <li>El archivo se descargará automáticamente</li>
+    </ol>
+
+    <div class="security-note">
+      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+      </svg>
+      <div>
+        <strong>Nota de seguridad:</strong>
+        Todo el proceso de conversión se realiza completamente en tu navegador usando JavaScript.
+        Tus archivos y contraseñas nunca salen de tu computadora.
+      </div>
+    </div>
+  </div>
+</div>

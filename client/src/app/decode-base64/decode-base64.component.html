@@ -1,0 +1,200 @@
+<div class="container">
+  <div class="header">
+    <h1>Decodificador de PKCS#12 Base64</h1>
+    <p class="subtitle">Decodifica y visualiza el contenido de un archivo .p12 desde su representación en base64</p>
+    <div class="info-banner">
+      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span>La decodificación se realiza localmente en tu navegador. Tus datos no se envían a ningún servidor.</span>
+    </div>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form">
+    <!-- String Base64 del PKCS#12 -->
+    <div class="form-group">
+      <label for="base64" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        String Base64 del archivo PKCS#12
+      </label>
+      <textarea
+        id="base64"
+        formControlName="base64"
+        placeholder="Pega aquí el string base64 del archivo .p12"
+        class="textarea"
+        rows="8"
+        [class.input-error]="form.controls.base64.invalid && form.controls.base64.touched"
+      ></textarea>
+      <small *ngIf="form.controls.base64.invalid && form.controls.base64.touched" class="error-text">
+        El string base64 es requerido
+      </small>
+    </div>
+
+    <!-- Contraseña -->
+    <div class="form-group">
+      <label for="password" class="label">
+        <svg class="label-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+        </svg>
+        Contraseña del archivo PKCS#12
+      </label>
+      <input
+        type="password"
+        id="password"
+        formControlName="password"
+        placeholder="Contraseña para decodificar el archivo"
+        class="input"
+        [class.input-error]="form.controls.password.invalid && form.controls.password.touched"
+      />
+      <small *ngIf="form.controls.password.invalid && form.controls.password.touched" class="error-text">
+        La contraseña es requerida
+      </small>
+    </div>
+
+    <!-- Botones -->
+    <div class="button-group">
+      <button
+        type="submit"
+        [disabled]="form.invalid || loading()"
+        class="btn btn-primary"
+      >
+        <svg *ngIf="!loading()" class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <svg *ngIf="loading()" class="btn-icon spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        {{ loading() ? 'Decodificando...' : 'Decodificar PKCS#12' }}
+      </button>
+
+      <button
+        type="button"
+        (click)="reset()"
+        class="btn btn-secondary"
+        [disabled]="loading()"
+      >
+        Limpiar
+      </button>
+    </div>
+  </form>
+
+  <!-- Resultado exitoso -->
+  <div *ngIf="result() && result()!.ok" class="result success">
+    <div class="result-header">
+      <svg class="result-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h3>PKCS#12 decodificado exitosamente</h3>
+    </div>
+
+    <!-- Información del certificado -->
+    <div *ngIf="result()!.certInfo" class="cert-info">
+      <button type="button" (click)="toggleCertInfo()" class="cert-info-toggle">
+        <svg class="toggle-icon" [class.rotated]="showCertInfo()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        Ver información del certificado
+      </button>
+
+      <div *ngIf="showCertInfo()" class="cert-details">
+        <div class="cert-field">
+          <strong>Asunto:</strong>
+          <span>{{ result()!.certInfo!.subject }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Emisor:</strong>
+          <span>{{ result()!.certInfo!.issuer }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Válido desde:</strong>
+          <span>{{ formatDate(result()!.certInfo!.validFrom) }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Válido hasta:</strong>
+          <span>{{ formatDate(result()!.certInfo!.validTo) }}</span>
+        </div>
+        <div class="cert-field">
+          <strong>Número de serie:</strong>
+          <span>{{ result()!.certInfo!.serialNumber }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Información completa en JSON -->
+    <div *ngIf="result()!.fullData" class="fulldata-section">
+      <button type="button" (click)="toggleFullData()" class="fulldata-toggle">
+        <svg class="toggle-icon" [class.rotated]="showFullData()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+        Ver datos completos en formato JSON
+      </button>
+
+      <div *ngIf="showFullData()" class="fulldata-content">
+        <div class="fulldata-actions">
+          <button type="button" (click)="copyFullDataToClipboard()" class="btn-copy">
+            <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+            Copiar JSON al portapapeles
+          </button>
+        </div>
+        <div class="fulldata-json">
+          <pre><code>{{ result()!.fullData | json }}</code></pre>
+        </div>
+        <div class="fulldata-info">
+          <p class="fulldata-hint">
+            <svg class="info-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Este JSON contiene toda la información extraída del PKCS#12, incluyendo:
+            datos del certificado, sujeto, emisor, validez, llave pública, extensiones X.509, y fingerprints.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultado con error -->
+  <div *ngIf="result() && !result()!.ok" class="result error">
+    <div class="result-header">
+      <svg class="result-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h3>Error al decodificar el archivo</h3>
+    </div>
+    <p class="error-message">{{ result()!.error }}</p>
+    <div class="error-hints">
+      <p><strong>Posibles causas:</strong></p>
+      <ul>
+        <li>El string base64 no es válido o está corrupto</li>
+        <li>La contraseña es incorrecta</li>
+        <li>El formato del PKCS#12 no es compatible</li>
+        <li>El archivo está dañado</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Información adicional -->
+  <div class="info-section">
+    <h3>¿Cómo usar este decodificador?</h3>
+    <ol>
+      <li>Pega el string base64 del archivo PKCS#12 (.p12) en el área de texto</li>
+      <li>Ingresa la contraseña con la que fue protegido el archivo</li>
+      <li>Haz clic en "Decodificar PKCS#12"</li>
+      <li>Visualiza toda la información del certificado y llave privada</li>
+    </ol>
+
+    <div class="security-note">
+      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+      </svg>
+      <div>
+        <strong>Nota de seguridad:</strong>
+        Todo el proceso de decodificación se realiza completamente en tu navegador usando JavaScript.
+        Tu string base64 y contraseña nunca salen de tu computadora.
+      </div>
+    </div>
+  </div>
+</div>
