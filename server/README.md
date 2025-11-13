@@ -24,7 +24,6 @@ npm run dev
   ```jsonc
   {
     "ok": true,
-    "issues": [],
     "cer": {
       "rfc": "XXXX010101XX0",
       "noCertificado": "30001000000300023708",

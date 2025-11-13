@@ -1,0 +1,157 @@
+<div class="card">
+  <form [formGroup]="form" class="row" (ngSubmit)="onSubmit()">
+    <label>Certificado (.cer)
+      <input type="file" accept=".cer" (change)="onCerSelected($event)" required />
+    </label>
+    <div class="muted" *ngIf="preview()">
+      <div *ngIf="preview()?.rfc">RFC detectado en .cer: <b>{{ preview()?.rfc }}</b></div>
+      <div *ngIf="preview()?.noCertificado">No. Certificado: <code>{{ preview()?.noCertificado }}</code></div>
+      <div *ngIf="preview()?.validoDesde">Vigencia: {{ preview()?.validoDesde }} → {{ preview()?.validoHasta }}</div>
+    </div>
+
+    <label>Clave privada (.key)
+      <input type="file" accept=".key" (change)="onKeySelected($event)" required />
+    </label>
+
+    <label>Contraseña de clave privada
+      <input type="password" formControlName="passphrase" placeholder="Contraseña" required />
+    </label>
+
+    <label>RFC
+      <input type="text" formControlName="rfc" placeholder="RFC (se autollenará desde el .cer)" />
+    </label>
+
+    <button type="submit" [disabled]="!canSubmit()">Enviar</button>
+  </form>
+</div>
+
+<div class="card loading-card" *ngIf="loading()">
+  <div class="loading-content">
+    <div class="spinner"></div>
+    <span>Procesando…</span>
+  </div>
+</div>
+
+<div class="result-container" *ngIf="result() as r">
+  <div class="card">
+    <h3>Resultado de la validación</h3>
+
+    <!-- Errores -->
+    <div class="error-section" *ngIf="r.error">
+      <div class="error-message">
+        <span class="error-icon">⚠️</span>
+        <strong>Error:</strong> {{ r.error }}
+      </div>
+    </div>
+
+    <!-- Issues -->
+    <div class="issues-section" *ngIf="r.issues?.length">
+      <div class="issues-header">
+        <span class="warning-icon">⚠️</span>
+        <strong>Advertencias:</strong>
+      </div>
+      <ul class="issues-list">
+        <li *ngFor="let issue of r.issues" class="issue-item">{{ issue }}</li>
+      </ul>
+    </div>
+
+    <!-- Información del certificado -->
+    <div class="cert-info" *ngIf="r.cer">
+      <h4>📄 Información del Certificado</h4>
+      <div class="info-grid">
+        <div class="info-item" *ngIf="r.cer.rfc">
+          <label>RFC:</label>
+          <span class="info-value rfc">{{ r.cer.rfc }}</span>
+        </div>
+        <div class="info-item" *ngIf="r.cer.nombreORazonSocial">
+          <label>Nombre:</label>
+          <span class="info-value">{{ r.cer.nombreORazonSocial }}</span>
+        </div>
+        <div class="info-item" *ngIf="r.cer.noCertificado">
+          <label>No. Certificado:</label>
+          <span class="info-value">{{ r.cer.noCertificado }}</span>
+        </div>
+        <div class="info-item" *ngIf="r.cer.validoDesde">
+          <label>Vigencia:</label>
+          <span class="info-value">{{ r.cer.validoDesde }} → {{ r.cer.validoHasta }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Información de la clave -->
+    <div class="key-info" *ngIf="r.key">
+      <h4>🔑 Información de la Clave</h4>
+      <div class="info-grid">
+        <div class="info-item">
+          <label>Tipo:</label>
+          <span class="info-value">{{ r.key.tipo?.toUpperCase() }}</span>
+        </div>
+        <div class="info-item">
+          <label>Bits:</label>
+          <span class="info-value">{{ r.key.bits }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verificación -->
+    <div class="verification-info" *ngIf="r.verificacion">
+      <h4>✅ Verificación</h4>
+      <div class="verification-grid">
+        <div class="verification-item">
+          <label>RFC enviado:</label>
+          <span class="info-value">{{ r.verificacion.rfcInput || 'No especificado' }}</span>
+        </div>
+        <div class="verification-item">
+          <label>RFC del certificado:</label>
+          <span class="info-value">{{ r.cer?.rfc || 'No encontrado' }}</span>
+        </div>
+        <div class="verification-item">
+          <label>RFC coincide:</label>
+          <span class="verification-status" [class.success]="r.verificacion.rfcCoincide" [class.error]="!r.verificacion.rfcCoincide">
+            {{ r.verificacion.rfcCoincide ? '✅ Sí' : '❌ No' }}
+          </span>
+        </div>
+        <div class="verification-item">
+          <label>Claves coinciden:</label>
+          <span class="verification-status" [class.success]="r.verificacion.publicKeyMatchesPrivateKey" [class.error]="!r.verificacion.publicKeyMatchesPrivateKey">
+            {{ r.verificacion.publicKeyMatchesPrivateKey ? '✅ Sí' : '❌ No' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Información de depuración del RFC -->
+      <div class="rfc-debug" *ngIf="!r.verificacion.rfcCoincide">
+        <h5>🔍 Información de depuración del RFC</h5>
+        <div class="debug-info">
+          <div>
+            <strong>RFC enviado:</strong>
+            <code>"{{ r.verificacion.rfcInput }}"</code>
+            ({{ (r.verificacion.rfcInput || '').length }} caracteres)
+          </div>
+          <div>
+            <strong>RFC del certificado:</strong>
+            <code>"{{ r.cer?.rfc }}"</code>
+            ({{ (r.cer?.rfc || '').length }} caracteres)
+          </div>
+          <div class="debug-suggestion">
+            💡 <strong>Sugerencia:</strong>
+            <span *ngIf="!r.verificacion.rfcInput">No se envió RFC al servidor. Asegúrate de que el campo RFC esté lleno.</span>
+            <span *ngIf="r.verificacion.rfcInput && r.cer?.rfc && r.verificacion.rfcInput !== r.cer.rfc">
+              Los RFC no coinciden exactamente. Revisa espacios en blanco, mayúsculas/minúsculas o caracteres especiales.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON completo (colapsible) -->
+    <div class="json-section">
+      <button type="button" class="json-toggle" (click)="toggleJsonView()">
+        {{ showJson() ? '📄 Ocultar JSON completo' : '📄 Mostrar JSON completo' }}
+      </button>
+      <div class="json-container" *ngIf="showJson()">
+        <pre class="json-content">{{ r | json }}</pre>
+      </div>
+    </div>
+  </div>
+</div>

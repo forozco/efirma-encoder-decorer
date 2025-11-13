@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/f_orozco/Documents/INE/frontend/internet/src/app/features/firmado/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
