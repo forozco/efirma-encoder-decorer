@@ -47,14 +47,17 @@ export interface PKCS12Result {
   providedIn: 'root'
 })
 export class Pkcs12Service {
+  // Contraseña fija para generar el PKCS#12
+  private readonly FIXED_P12_PASSWORD = 'y71&G!0O7';
 
   /**
    * Genera un archivo PKCS#12 (.p12) a partir de archivos .cer, .key y contraseña
    * @param cerFile Archivo de certificado (.cer)
    * @param keyFile Archivo de llave privada (.key)
-   * @param password Contraseña para proteger el archivo PKCS#12
+   * @param password Contraseña de la llave privada (.key del SAT)
    * @param keyPassword Contraseña de la llave privada (opcional, por defecto usa la misma que password)
    * @returns Promise con el resultado de la operación
+   * @note El archivo PKCS#12 generado siempre usará la contraseña fija "y71&G!0O7"
    */
   async generatePKCS12(
     cerFile: File,
@@ -185,11 +188,11 @@ export class Pkcs12Service {
         }
       };
 
-      // Crear PKCS#12
+      // Crear PKCS#12 con contraseña fija
       const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
         privateKey,
         [certificate],
-        password,
+        this.FIXED_P12_PASSWORD, // Usar contraseña fija en lugar de la proporcionada por el usuario
         {
           algorithm: '3des', // Algoritmo compatible con la mayoría de sistemas
           friendlyName: 'E.Firma SAT',
