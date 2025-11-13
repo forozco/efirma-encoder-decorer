@@ -1,10 +1,20 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import multer from "multer";
-import { X509Certificate, createPrivateKey, createSign, createVerify } from "node:crypto";
+import { X509Certificate, createPrivateKey, createSign, createVerify, randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 // --- Helpers ---
+function generateSecurePassword(length: number = 32): string {
+  // Genera una contraseña aleatoria segura usando caracteres alfanuméricos
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+';
+  const randomBuffer = randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars[randomBuffer[i] % chars.length];
+  }
+  return password;
+}
 function hexToDecimalString(hex: string): string {
   const clean = hex.replace(/[:\s]/g, "");
   return BigInt("0x" + clean).toString(10);
@@ -196,6 +206,20 @@ app.post(
         return res.status(400).json({ ok: false, error: "La clave privada no corresponde a la llave pública del .cer." });
       }
 
+      // Generar nueva contraseña segura para reencriptar la llave privada
+      const newPassword = generateSecurePassword();
+      console.log('Nueva contraseña generada (longitud):', newPassword.length);
+
+      // Exportar la llave privada con la nueva contraseña
+      const reencryptedKey = keyObj.export({
+        format: 'der',
+        type: 'pkcs8',
+        cipher: 'aes-256-cbc',
+        passphrase: newPassword
+      });
+
+      console.log('Llave privada reencriptada (tamaño):', reencryptedKey.length, 'bytes');
+
       const bits = (keyObj.asymmetricKeyDetails as any)?.modulusLength ?? undefined;
       const payload = {
         ok: true,
@@ -211,7 +235,12 @@ app.post(
           fingerprintSHA256: cert.fingerprint256,
           certificadoBase64: Buffer.from(cert.raw).toString("base64")
         },
-        key: { tipo: keyObj.asymmetricKeyType, bits },
+        key: {
+          tipo: keyObj.asymmetricKeyType,
+          bits,
+          keyEncryptedBase64: reencryptedKey.toString('base64'),
+          newPassword: newPassword
+        },
         verificacion: {
           rfcInput,
           rfcCoincide,

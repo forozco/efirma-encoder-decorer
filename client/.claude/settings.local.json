@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/f_orozco/Documents/INE/sat-efirma-fullstack-2/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
